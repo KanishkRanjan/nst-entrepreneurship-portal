@@ -5,7 +5,7 @@ import markdown from '@eslint/markdown'
 import css from '@eslint/css'
 import prettierPlugin from 'eslint-plugin-prettier'
 
-import {defineConfig} from 'eslint/config'
+import { defineConfig } from 'eslint/config'
 
 export default defineConfig([
   // GLOBAL IGNORES
@@ -35,7 +35,7 @@ export default defineConfig([
           semi: false,
           singleQuote: true,
           trailingComma: 'es5',
-          bracketSpacing: false,
+          bracketSpacing: true,
           arrowParens: 'avoid',
         },
       ],
@@ -43,7 +43,7 @@ export default defineConfig([
       // ERROR PREVENTION
       'no-unused-vars': [
         'error',
-        {argsIgnorePattern: '^_', varsIgnorePattern: '^_'},
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ], // No dead code/variables allowed unless prefixed with an underscore (_)
       'no-undef': 'error', // Catch typos: variables must be declared before use
       'no-unreachable': 'error', // Blocks useless code hidden after a 'return' statement
@@ -59,25 +59,25 @@ export default defineConfig([
       'consistent-return': 'error', // Express routes/functions must explicitly handle all returns to prevent API hangs
 
       // COMPLEXITY GUARDS
-      complexity: ['error', {max: 10}], // Rejects overly complicated logic / huge nested conditions
-      'max-depth': ['error', {max: 4}], // Blocks nested callback hell (max 4 layers of deep nesting)
+      complexity: ['error', { max: 10 }], // Rejects overly complicated logic / huge nested conditions
+      'max-depth': ['error', { max: 4 }], // Blocks nested callback hell (max 4 layers of deep nesting)
     },
   },
   {
     files: ['**/*.json'],
-    plugins: {json},
+    plugins: { json },
     language: 'json/json',
     extends: ['json/recommended'],
   },
   {
     files: ['**/*.md'],
-    plugins: {markdown},
+    plugins: { markdown },
     language: 'markdown/gfm',
     extends: ['markdown/recommended'],
   },
   {
     files: ['**/*.css'],
-    plugins: {css},
+    plugins: { css },
     language: 'css/css',
     extends: ['css/recommended'],
   },
