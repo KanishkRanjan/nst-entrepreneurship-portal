@@ -1,3 +1,5 @@
+import path from 'path'
+import { fileURLToPath } from 'url'
 import cookieParser from 'cookie-parser'
 import express from 'express'
 import cors from 'cors'
@@ -7,6 +9,9 @@ import routes from './routes/index.js'
 import attachUser from './middleware/attachUser.js'
 
 dotenv.config()
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 mongoose
   .connect(process.env.MONGODB_URI)
@@ -27,6 +32,13 @@ app.use(cookieParser())
 app.use(attachUser)
 
 app.use('/api', routes)
+
+// Serve frontend build static files in production
+const distPath = path.join(__dirname, '../frontend/dist')
+app.use(express.static(distPath))
+app.get('*', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'))
+})
 
 app.listen(PORT, err => {
   if (err) {

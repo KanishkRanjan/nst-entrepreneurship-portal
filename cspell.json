@@ -61,7 +61,9 @@
     "kpis",
     "subkpis",
     "subkpi",
-    "virtuals"
+    "virtuals",
+    "divyapahuja31",
+    "Buildx"
   ],
   "ignorePaths": [
     "node_modules/**",

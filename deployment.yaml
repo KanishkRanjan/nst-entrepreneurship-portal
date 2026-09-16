@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nst-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nst-portal
+  template:
+    metadata:
+      labels:
+        app: nst-portal
+    spec:
+      containers:
+        - name: nst-portal
+          image: ghcr.io/divyapahuja31/nst-entrepreneurship-portal:latest
+          ports:
+            - containerPort: 4000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "4000"
+            - name: MONGODB_URI
+              value: "mongodb+srv://root:XA0rNs0lk4v8USIF@newtonschool.wutay10.mongodb.net/NewtonSchool?appName=NewtonSchool"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nst-portal-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: nst-portal
+  ports:
+    - port: 80
+      targetPort: 4000

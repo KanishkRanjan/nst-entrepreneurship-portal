@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+dist
+build
+.git
+.gitignore
+.env
+.env.local
+.vscode
+.idea
+.husky
+.gemini
+coverage
+*.md
