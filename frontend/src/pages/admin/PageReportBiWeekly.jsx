@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { useRevalidator } from 'react-router'
+import { useLoaderData, useRevalidator } from 'react-router'
 
 import {
   reopenBiWeeklySubmission,
@@ -190,23 +190,24 @@ function shortDate(date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-function BiWeekly({ data }) {
+function BiWeekly({ data: propData }) {
+  const loaderData = useLoaderData()
+  const data = propData !== undefined ? propData : loaderData
   const currentUser = useAuthStore(state => state.user)
   const revalidator = useRevalidator()
   const isAdmin = currentUser?.role?.name === 'admin'
 
-  const { founder } = data || {}
+  const { founder, venture, coFounders = [] } = data || {}
   const rows = data?.submissions ?? []
   const observations = data?.observations ?? []
   const evaluations = data?.evaluations ?? []
   const [selected, setSelected] = React.useState(null)
   const [message, setMessage] = React.useState('')
 
-  const cycles = React.useMemo(() => {
-    const anchor =
-      founder?.createdAt ?? founder?.created_at ?? new Date().toISOString()
-    return computeCycles(anchor)
-  }, [founder])
+  const cycles = React.useMemo(
+    () => computeCycles(venture?.createdAt || founder?.createdAt || new Date()),
+    [venture?.createdAt, founder?.createdAt]
+  )
 
   const currentCycle = React.useMemo(() => {
     const now = new Date()
@@ -214,11 +215,11 @@ function BiWeekly({ data }) {
     return c?.n ?? cycles.find(c => now < c.start)?.n ?? CYCLES
   }, [cycles])
 
-  if (!data || !founder) {
+  if (!data || (!founder && !venture)) {
     return (
       <Box sx={{ p: 3 }}>
         <Alert severity="info">
-          No bi-weekly profile data found for this founder.
+          No active venture or founder profile found. Bi-weekly progress reports are shared across co-founders of an active venture.
         </Alert>
       </Box>
     )
@@ -253,6 +254,7 @@ function BiWeekly({ data }) {
       submitBiWeeklyCycle({
         ...payload,
         isSubmit: submit,
+        ventureId: venture?._id,
         founderId: founder?._id,
       })
     )
@@ -262,18 +264,30 @@ function BiWeekly({ data }) {
       return
 
     return run('Unlocking...', () =>
-      reopenBiWeeklySubmission(founder?._id, cycleNumber)
+      reopenBiWeeklySubmission({
+        ventureId: venture?._id,
+        founderId: founder?._id,
+        cycle_number: cycleNumber,
+      })
     )
   }
 
   const saveObservation = payload =>
     run('Saving observation...', () =>
-      saveBiWeeklyObservation({ ...payload, founderId: founder?._id })
+      saveBiWeeklyObservation({
+        ...payload,
+        ventureId: venture?._id,
+        founderId: founder?._id,
+      })
     )
 
   const saveEvaluation = payload =>
     run('Saving evaluation...', () =>
-      saveBiWeeklyEvaluation({ ...payload, founderId: founder?._id })
+      saveBiWeeklyEvaluation({
+        ...payload,
+        ventureId: venture?._id,
+        founderId: founder?._id,
+      })
     )
 
   return (
@@ -288,14 +302,52 @@ function BiWeekly({ data }) {
         <Stack
           direction="row"
           spacing={2}
-          alignItems="baseline"
+          alignItems="center"
           justifyContent="space-between"
           flexWrap="wrap"
         >
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              {venture?.name || founder?.username || 'Venture Progress'}
+            </Typography>
+            {venture?.stage && (
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Stage: <strong>{venture.stage}</strong>
+              </Typography>
+            )}
+          </Box>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             Current cycle #{currentCycle}
           </Typography>
         </Stack>
+
+        {coFounders?.length > 0 && (
+          <Box sx={{ mt: 1.5 }}>
+            <Typography
+              variant="caption"
+              sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}
+            >
+              Co-Founders (Shared Venture Team):
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              {coFounders.map(cf => (
+                <Chip
+                  key={cf._id}
+                  label={cf.username}
+                  size="small"
+                  variant="outlined"
+                  color="primary"
+                />
+              ))}
+            </Stack>
+          </Box>
+        )}
+
+        {!venture && (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            You are not currently linked to an active venture. Bi-weekly reports are shared across co-founders of your venture team.
+          </Alert>
+        )}
       </Box>
 
       <MyProgress
@@ -984,13 +1036,26 @@ function CycleForm({
           {isAdmin ? (
             <Alert severity="info">
               {submitted
-                ? `Submission received from student on ${new Date(
+                ? `Submission received from ${
+                    existing?.submitted_by?.username
+                      ? `${existing.submitted_by.username} (on behalf of venture)`
+                      : 'venture team'
+                  } on ${new Date(
                     existing.submitted_at
                   ).toLocaleDateString()}. Admin view is read-only.`
-                : 'Student has not submitted for this cycle yet.'}
+                : 'Venture team has not submitted for this cycle yet.'}
             </Alert>
           ) : (
             <>
+              {existing?.submitted_by?.username && (
+                <Typography
+                  variant="caption"
+                  sx={{ color: 'text.secondary', display: 'block', mb: 1 }}
+                >
+                  Last saved/submitted by co-founder:{' '}
+                  <strong>{existing.submitted_by.username}</strong>
+                </Typography>
+              )}
               {!locked && (
                 <Stack
                   direction="row"

@@ -24,9 +24,17 @@ export const applyToVenture = async (ventureId, message) => {
 }
 
 export const ventureDetailLoader = async ({ params }) => {
-  const { data } = await api.get(`/ventures/${params.ventureId}`)
+  const [{ data: ventureData }, biweeklyRes] = await Promise.all([
+    api.get(`/ventures/${params.ventureId}`),
+    api
+      .get('/biweekly', { params: { ventureId: params.ventureId } })
+      .catch(() => ({ data: null })),
+  ])
 
-  return data
+  return {
+    ...ventureData,
+    biweekly: biweeklyRes?.data,
+  }
 }
 
 export const venturesPageLoader = async () => {

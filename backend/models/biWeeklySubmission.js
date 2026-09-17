@@ -41,13 +41,11 @@ const biWeeklySubmissionSchema = new mongoose.Schema(
       index: true,
     },
 
-    // A report is filed either for the venture as a whole or by one founder.
-    // Until now the owner was only encoded in custom_id and in the reverse
-    // reference on User, which made reports impossible to query directly.
+    // A report is filed for the venture as a whole and shared among co-founders.
     scope: {
       type: String,
       enum: Object.keys(KPIScope),
-      default: 'FOUNDER',
+      default: 'VENTURE',
       required: true,
     },
 
@@ -57,8 +55,15 @@ const biWeeklySubmissionSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Set only for FOUNDER-scoped reports.
+    // Set for FOUNDER-scoped reports or historical records.
     founder: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+
+    // Tracks which co-founder filed or last updated the submission.
+    submitted_by: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,

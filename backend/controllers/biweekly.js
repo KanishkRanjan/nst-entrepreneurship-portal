@@ -1,48 +1,35 @@
-import mongoose from 'mongoose'
-import User from '../models/user.js'
-
-import BiWeeklySubmission from '../models/biWeeklySubmission.js'
 import BiWeeklyEvaluation from '../models/biWeeklyEvaluation.js'
 import BiWeeklyObservation from '../models/biWeeklyObservation.js'
+import BiWeeklySubmission from '../models/biWeeklySubmission.js'
 import { findVentureForUser } from '../utils/founderHelper.js'
-
-const resolveTargetFounderId = (user, query) => {
-  if (user?.role === 'admin') {
-    return query.founderId || user?.id
-  }
-  return user?.id
-}
-
-const validateCycleNumber = n => {
-  const num = Number(n)
-  return num >= 1 && num <= 13 ? num : null
-}
+import {
+  validateCycleNumber,
+  resolveVentureAndContext,
+  loadVentureSubmissions,
+  updateOrCreateVentureSubmission,
+  resolveAdminTarget,
+} from '../utils/biweeklyHelper.js'
 
 export const getBiWeeklyData = async (req, res) => {
   try {
-    const targetFounderId = resolveTargetFounderId(req.user, req.query)
+    const { venture, founder, coFounders } = await resolveVentureAndContext(
+      req.user,
+      req.query
+    )
 
-    if (!targetFounderId || !mongoose.isValidObjectId(targetFounderId)) {
-      return res.status(400).json({ error: 'Valid founderId is required' })
+    let submissions = []
+
+    if (venture) {
+      submissions = await loadVentureSubmissions(venture._id, coFounders)
+    } else if (founder) {
+      submissions = await BiWeeklySubmission.find({ founder: founder._id })
+        .populate('biWeeklyEvaluation')
+        .populate('biWeeklyObservationSchema')
+        .populate('submitted_by', 'username email')
+        .sort({ cycle_number: 1 })
+        .exec()
     }
 
-    const founder = await User.findById(targetFounderId)
-      .populate({
-        path: 'biWeeklySubmission',
-        populate: [
-          { path: 'biWeeklyEvaluation' },
-          { path: 'biWeeklyObservationSchema' },
-        ],
-      })
-      .exec()
-
-    if (!founder) {
-      return res.status(404).json({ error: 'Founder not found' })
-    }
-
-    const venture = await findVentureForUser(targetFounderId)
-
-    const submissions = founder.biWeeklySubmission || []
     const evaluations = submissions
       .map(sub => sub.biWeeklyEvaluation)
       .filter(Boolean)
@@ -53,6 +40,7 @@ export const getBiWeeklyData = async (req, res) => {
     return res.json({
       founder,
       venture,
+      coFounders,
       submissions,
       evaluations,
       observations,
@@ -63,33 +51,6 @@ export const getBiWeeklyData = async (req, res) => {
       error: 'Failed to load bi-weekly data',
     })
   }
-}
-
-const updateOrCreateSubmission = async (
-  userId,
-  cycle_number,
-  data = {},
-  isSubmit = false
-) => {
-  const custom_id = `${userId}_cycle_${cycle_number}`
-  const updateData = { ...data, cycle_number }
-
-  if (isSubmit) {
-    updateData.submitted_at = new Date()
-  }
-
-  const submission = await BiWeeklySubmission.findOneAndUpdate(
-    { custom_id },
-    { $set: updateData },
-    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-  )
-
-  await User.updateOne(
-    { _id: userId },
-    { $addToSet: { biWeeklySubmission: submission._id } }
-  )
-
-  return submission
 }
 
 export const submitBiWeeklyCycle = async (req, res) => {
@@ -111,16 +72,27 @@ export const submitBiWeeklyCycle = async (req, res) => {
       return res.status(400).json({ error: 'Invalid cycle number (1-13)' })
     }
 
-    const submission = await updateOrCreateSubmission(
-      req.user.id,
-      cycleNum,
+    const venture = await findVentureForUser(req.user.id)
+    if (!venture) {
+      return res.status(400).json({
+        error:
+          'You must belong to an active venture to submit bi-weekly progress.',
+      })
+    }
+
+    const submission = await updateOrCreateVentureSubmission({
+      ventureId: venture._id,
+      userId: req.user.id,
+      cycle_number: cycleNum,
       data,
-      isSubmit
-    )
+      isSubmit,
+    })
 
     return res.status(200).json({
       success: true,
-      message: isSubmit ? 'Submitted to faculty' : 'Draft saved',
+      message: isSubmit
+        ? 'Submitted to faculty on behalf of venture'
+        : 'Venture draft saved',
       submission,
     })
   } catch (err) {
@@ -135,25 +107,44 @@ const getOrCreateSubmissionForAdmin = async (req, res) => {
     return null
   }
 
-  const { founderId, cycle_number } = req.body
+  const { ventureId, founderId, cycle_number } = req.body
   const cycleNum = validateCycleNumber(cycle_number)
 
-  if (!mongoose.isValidObjectId(founderId) || !cycleNum) {
-    res
-      .status(400)
-      .json({ error: 'Valid founderId and cycle_number (1-13) are required' })
+  if (!cycleNum) {
+    res.status(400).json({ error: 'Valid cycle_number (1-13) is required' })
     return null
   }
 
-  const founder = await User.findById(founderId)
-  if (!founder) {
-    res.status(404).json({ error: 'Founder not found' })
+  const { venture, founder } = await resolveAdminTarget(ventureId, founderId)
+
+  if (!venture && !founder) {
+    res.status(404).json({ error: 'Neither venture nor founder was found' })
     return null
   }
 
-  const submission = await updateOrCreateSubmission(founderId, cycleNum)
+  let submission
+  if (venture) {
+    submission = await updateOrCreateVentureSubmission({
+      ventureId: venture._id,
+      userId: req.user.id,
+      cycle_number: cycleNum,
+    })
+  } else {
+    const custom_id = `${founder._id}_cycle_${cycleNum}`
+    submission = await BiWeeklySubmission.findOneAndUpdate(
+      { custom_id },
+      {
+        $set: {
+          cycle_number: cycleNum,
+          founder: founder._id,
+          scope: 'FOUNDER',
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    )
+  }
 
-  return { founder, submission, cycleNum }
+  return { venture, founder, submission, cycleNum }
 }
 
 export const saveBiWeeklyObservation = async (req, res) => {
@@ -264,7 +255,7 @@ export const reopenBiWeeklySubmission = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Cycle unlocked for student',
+      message: 'Cycle unlocked for venture team',
       submission,
     })
   } catch (err) {

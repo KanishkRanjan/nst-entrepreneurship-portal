@@ -20,6 +20,7 @@ export const biWeeklyLoader = async ({ params }) => {
   const [{ data: biweekly }, kpisRes] = await Promise.all([
     api.get('/biweekly', {
       params: {
+        ventureId: params?.ventureId,
         founderId: params?.userid,
       },
     }),

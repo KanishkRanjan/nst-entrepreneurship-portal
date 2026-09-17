@@ -51,6 +51,12 @@ ventureSchema.virtual('teamSize', {
   count: true,
 })
 
+ventureSchema.virtual('biWeeklySubmissions', {
+  ref: 'BiWeeklySubmission',
+  localField: '_id',
+  foreignField: 'venture',
+})
+
 export const modelName = 'Venture'
 
 const Venture = mongoose.model(modelName, ventureSchema)

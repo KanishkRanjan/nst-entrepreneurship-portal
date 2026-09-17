@@ -3,6 +3,7 @@ import { api } from './client'
 export const biWeeklyLoader = async ({ params }) => {
   const { data } = await api.get('/biweekly', {
     params: {
+      ventureId: params?.ventureId,
       founderId: params?.userid,
     },
   })
@@ -24,10 +25,17 @@ export const saveBiWeeklyEvaluation = async payload => {
   return data
 }
 
-export const reopenBiWeeklySubmission = async (founderId, cycleNumber) => {
-  const { data } = await api.post('/biweekly/reopen', {
-    founderId,
-    cycle_number: cycleNumber,
-  })
+export const reopenBiWeeklySubmission = async (target, cycleNumber) => {
+  const payload =
+    typeof target === 'object' && target !== null
+      ? target
+      : { founderId: target, cycle_number: cycleNumber }
+
+  if (cycleNumber && !payload.cycle_number) {
+    payload.cycle_number = cycleNumber
+  }
+
+  const { data } = await api.post('/biweekly/reopen', payload)
   return data
 }
+
