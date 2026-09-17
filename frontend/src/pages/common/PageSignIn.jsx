@@ -20,8 +20,52 @@ function SignIn() {
   const [action, setAction] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  })
+  const [errors, setErrors] = useState({})
+
+  const validateField = (name, value) => {
+    if (name === 'email') {
+      if (
+        value &&
+        !/^[a-zA-Z0-9._%+-]+@(adypu\.edu\.in|newtonschool\.co)$/i.test(value)
+      ) {
+        return 'Please enter a valid ADYPU or Newton School email address'
+      }
+    }
+    if (name === 'password') {
+      if (value && value.length < 8) {
+        return 'Password must be at least 8 characters'
+      }
+    }
+    return ''
+  }
+
+  const handleChange = event => {
+    const { name, value } = event.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+    setErrors(prev => ({ ...prev, [name]: validateField(name, value) }))
+    if (action) {
+      setAction(null)
+    }
+  }
+
   const handleSubmit = async event => {
     event.preventDefault()
+
+    const emailErr = validateField('email', formData.email)
+    const passwordErr = validateField('password', formData.password)
+
+    if (emailErr || passwordErr) {
+      setErrors({
+        email: emailErr,
+        password: passwordErr,
+      })
+      return
+    }
+
     setSubmitting(true)
     setAction(null)
 
@@ -40,6 +84,12 @@ function SignIn() {
   if (isAuthenticated) {
     return <Navigate to={homePathFor(user)} replace />
   }
+
+  const emailError =
+    errors.email ||
+    action?.error?.email ||
+    (typeof action?.error === 'string' ? action.error : '')
+  const passwordError = errors.password || action?.error?.password
 
   return (
     <AuthScreen
@@ -67,19 +117,25 @@ function SignIn() {
 
         <form onSubmit={handleSubmit}>
           <TextField
-            error={Boolean(action && action.error)}
+            error={Boolean(emailError)}
+            helperText={emailError}
             label="Email"
             type="email"
             name="email"
+            value={formData.email}
+            onChange={handleChange}
             fullWidth
             sx={{ mb: 2 }}
           />
 
           <TextField
-            error={Boolean(action && action.error)}
+            error={Boolean(passwordError)}
+            helperText={passwordError}
             label="Password"
             type="password"
             name="password"
+            value={formData.password}
+            onChange={handleChange}
             fullWidth
             sx={{ mb: 2 }}
           />
