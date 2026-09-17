@@ -28,7 +28,7 @@ const validatePassword = password => {
   if (!password) {
     return 'Password is required'
   }
-  if (password && password.length <= 8) {
+  if (password && password.length < 8) {
     return 'Password is too short, must of 8 or grater than 8'
   }
   return ''
