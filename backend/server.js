@@ -13,8 +13,9 @@ dotenv.config()
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+const MONGODB_URI = process.env.MONGODB_URI
 mongoose
-  .connect(process.env.MONGODB_URI)
+  .connect(MONGODB_URI)
   .then(() => console.info('Connected to MongoDB'))
   .catch(err => console.error('Error connecting to MongoDB:', err))
 
@@ -36,7 +37,7 @@ app.use('/api', routes)
 // Serve frontend build static files in production
 const distPath = path.join(__dirname, '../frontend/dist')
 app.use(express.static(distPath))
-app.get('*', (req, res) => {
+app.use((req, res) => {
   res.sendFile(path.join(distPath, 'index.html'))
 })
 

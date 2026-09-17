@@ -2,7 +2,7 @@ name: Build and Push Docker Image to GHCR
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "deployment" ]
 
 env:
   REGISTRY: ghcr.io
@@ -45,5 +45,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
