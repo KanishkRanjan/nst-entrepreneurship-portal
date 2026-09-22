@@ -33,45 +33,74 @@ export const reviewProposal = async (req, res) => {
     const { proposalId } = req.params
     const { status, remarks } = req.body
 
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+
     if (!['APPROVED', 'REJECTED'].includes(status)) {
       return res.status(400).json({ error: 'Invalid review status' })
     }
 
-    const proposal = await VentureProposal.findById(proposalId)
-    if (!proposal) {
-      return res.status(404).json({ error: 'Proposal not found' })
-    }
+    const proposal = await VentureProposal.findOneAndUpdate(
+      { _id: proposalId, status: 'PENDING' },
+      {
+        $set: { status },
+        $push: {
+          reviews: {
+            reviewer: req.user.id,
+            status,
+            remarks,
+          },
+        },
+      },
+      { new: true }
+    )
 
-    if (proposal.status !== 'PENDING') {
+    if (!proposal) {
+      const existing = await VentureProposal.findById(proposalId)
+      if (!existing) {
+        return res.status(404).json({ error: 'Proposal not found' })
+      }
       return res.status(409).json({
         error: 'This proposal has already been reviewed',
       })
     }
 
-    proposal.status = status
-    proposal.reviews.push({
-      reviewer: req.user.id,
-      status,
-      remarks,
-    })
-
     if (status === 'APPROVED') {
-      const venture = await Venture.create({
-        name: proposal.startupName,
-        description: proposal.description,
-        campus: proposal.campus,
-        industry: proposal.industry,
-        stage: proposal.stage,
-        website: proposal.website,
-      })
+      const existingVenture = await findVentureForUser(proposal.submittedBy)
 
-      // first founder is the user who submitted the proposal
-      await addFounderToVenture(proposal.submittedBy, venture._id)
+      if (existingVenture) {
+        proposal.status = 'PENDING'
+        proposal.reviews.pop()
+        await proposal.save()
 
-      proposal.venture = venture._id
+        return res.status(409).json({
+          error: 'This student is already part of an active venture',
+        })
+      }
+
+      try {
+        const venture = await Venture.create({
+          name: proposal.startupName,
+          description: proposal.description,
+          campus: proposal.campus,
+          industry: proposal.industry,
+          stage: proposal.stage,
+          website: proposal.website,
+        })
+
+        // first founder is the user who submitted the proposal
+        await addFounderToVenture(proposal.submittedBy, venture._id)
+
+        proposal.venture = venture._id
+        await proposal.save()
+      } catch (ventureError) {
+        proposal.status = 'PENDING'
+        proposal.reviews.pop()
+        await proposal.save()
+        throw ventureError
+      }
     }
-
-    await proposal.save()
 
     return res.status(200).json({ proposal })
   } catch (error) {
