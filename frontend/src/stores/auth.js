@@ -77,5 +77,8 @@ export const whenAuthReady = () =>
   })
 
 // A student isn't part of the portal until they belong to a startup.
+// A student onboards until their Google account is connected (so the KPI
+// bot knows them in Meet transcripts) and they belong to a startup.
 export const needsOnboarding = user =>
-  user?.role?.name === ROLES.STUDENT && !user.venture
+  user?.role?.name === ROLES.STUDENT &&
+  (user.googleLinked === false || !user.venture)

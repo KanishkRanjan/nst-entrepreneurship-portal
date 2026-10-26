@@ -1,9 +1,11 @@
 import { scheduleDueSessions } from './programmeScheduler.js'
 import { pollTranscripts } from './transcriptPoller.js'
+import { extractCheckInKpis } from './kpiBot.js'
 
 // The server's background work, every ten minutes: schedule programme
-// sessions that are coming up, and collect Meet transcripts of meetings
-// that have ended. Started by server.js, never by tests.
+// sessions that are coming up, collect Meet transcripts of meetings that
+// have ended, and turn those transcripts into founders' KPIs. Started by
+// server.js, never by tests.
 
 const MINUTE_MS = 60 * 1000
 const EVERY_MS = 10 * MINUTE_MS
@@ -11,6 +13,7 @@ const EVERY_MS = 10 * MINUTE_MS
 const JOBS = [
   ['Programme scheduling', scheduleDueSessions],
   ['Transcript poll', pollTranscripts],
+  ['KPI extraction', extractCheckInKpis],
 ]
 
 let timer = null

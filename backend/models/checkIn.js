@@ -28,6 +28,9 @@ const attendeeSchema = new mongoose.Schema(
 const transcriptEntrySchema = new mongoose.Schema(
   {
     speaker: String,
+    // The speaker's Google account ID when they were signed in to Meet; the
+    // KPI bot matches it to User.googleId.
+    googleId: String,
     text: String,
     startTime: Date,
   },
@@ -57,6 +60,43 @@ const transcriptSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+  },
+  { _id: false }
+)
+
+// The KPI bot's pass over a READY transcript (utils/kpiBot.js): DONE with
+// the KPIs it added and the goals it could not give a founder, SKIPPED when
+// the meeting's KPIs already existed, FAILED to be retried.
+const kpiExtractionSchema = new mongoose.Schema(
+  {
+    status: {
+      type: String,
+      enum: ['PENDING', 'DONE', 'SKIPPED', 'FAILED'],
+      default: 'PENDING',
+    },
+    attempts: { type: Number, default: 0 },
+    error: { type: String, default: '' },
+    created: { type: Number, default: 0 },
+    skipped: [
+      {
+        _id: false,
+        speaker: String,
+        title: String,
+        reason: String,
+      },
+    ],
+    // The meeting's goals as Gemini gave them, kept so a retry and the other
+    // check-ins of a group session reuse them. Unset until Gemini answers.
+    candidates: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: undefined,
+    },
+    // Set once saving KPIs has begun, so a retry finishes the job instead of
+    // mistaking its own KPIs for an earlier import.
+    started: Boolean,
+    // While one server works on it, others leave it alone.
+    leaseUntil: Date,
+    processedAt: Date,
   },
   { _id: false }
 )
@@ -161,13 +201,30 @@ const checkInSchema = new mongoose.Schema(
       type: transcriptSchema,
       default: () => ({}),
     },
+    kpiExtraction: {
+      type: kpiExtractionSchema,
+      default: () => ({}),
+    },
     // The mentor's notes, and the record when Meet made no transcript.
     notes: {
       type: String,
       default: '',
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    // The KPI bot's working state (Gemini's raw answer, its lease) and the
+    // speakers' Google account IDs are not for the API.
+    toJSON: {
+      transform: (doc, ret) => {
+        delete ret.kpiExtraction
+        for (const entry of ret.transcript?.entries || []) {
+          delete entry.googleId
+        }
+        return ret
+      },
+    },
+  }
 )
 
 checkInSchema.index({ venture: 1, scheduledAt: 1 })
@@ -177,6 +234,12 @@ checkInSchema.index({ 'attendees.user': 1, scheduledAt: 1 })
 checkInSchema.index({ staff: 1, scheduledAt: 1 })
 // The check-ins whose transcript is due to be looked for.
 checkInSchema.index({ 'transcript.status': 1, 'transcript.nextPollAt': 1 })
+// The ready transcripts the KPI bot has still to go through.
+checkInSchema.index({
+  'transcript.status': 1,
+  'kpiExtraction.status': 1,
+  scheduledAt: 1,
+})
 
 export const modelName = 'CheckIn'
 

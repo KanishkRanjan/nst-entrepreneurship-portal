@@ -6,6 +6,7 @@ import {
   signOut,
   googleAuthCallback,
   googleAuth,
+  googleLink,
   completeGoogleSignup,
   getGoogleSignupOptions,
   portfolio,
@@ -15,11 +16,13 @@ import {
   verifySignupOtp,
   resendSignupOtp,
 } from '../controllers/user.js'
+import { requireSignedIn } from '../middleware/requireAuth.js'
 import { authLimiter, guessLimiter } from '../middleware/rateLimit.js'
 
 const router = Router()
 
 router.get('/google', googleAuth)
+router.get('/google/link', requireSignedIn, googleLink)
 router.get('/google/callback', googleAuthCallback)
 router.post('/google/complete-signup', authLimiter, completeGoogleSignup)
 router.get('/google/signup-options', getGoogleSignupOptions)

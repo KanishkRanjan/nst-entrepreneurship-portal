@@ -11,7 +11,7 @@ const findSessionUser = async token => {
   }
 
   const user = await User.findById(payload.userId)
-    .select('email role sessionVersion deletedAt')
+    .select('email role sessionVersion deletedAt googleId')
     .populate('role', 'name')
     .lean()
 
@@ -25,7 +25,12 @@ const findSessionUser = async token => {
     return null
   }
 
-  return { id: String(user._id), email: user.email, role: user.role?.name }
+  return {
+    id: String(user._id),
+    email: user.email,
+    role: user.role?.name,
+    googleLinked: Boolean(user.googleId),
+  }
 }
 
 // Runs on every request to identify the caller, it never rejects any request allowing public routes to be reachable. Use requireAuth to gate a route.

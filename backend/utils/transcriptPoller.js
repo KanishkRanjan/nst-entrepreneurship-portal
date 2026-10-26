@@ -51,16 +51,27 @@ const displayName = participant =>
   participant?.phoneUser?.displayName ??
   'Unknown speaker'
 
-const speakerNames = async (google, participantNames) => {
-  const names = new Map()
+// A signed-in speaker's Google account ID ("users/1098..." gives "1098..."),
+// the same ID Google sign-in gives us as User.googleId. Guests and phone
+// callers have none.
+const googleIdOf = participant =>
+  participant?.signedinUser?.user?.match(/^users\/(.+)$/u)?.[1]
+
+// Who each participant is: their name and, when signed in, their account.
+const speakersOf = async (google, participantNames) => {
+  const speakers = new Map()
   for (const name of new Set(participantNames)) {
     try {
-      names.set(name, displayName(await google('participant', name)))
+      const participant = await google('participant', name)
+      speakers.set(name, {
+        speaker: displayName(participant),
+        googleId: googleIdOf(participant),
+      })
     } catch {
-      names.set(name, 'Unknown speaker')
+      speakers.set(name, { speaker: 'Unknown speaker' })
     }
   }
-  return names
+  return speakers
 }
 
 // "[12:05]": minutes and seconds into the meeting.
@@ -82,7 +93,7 @@ export const collectTranscript = async (google, transcripts) => {
   )
     .flat()
     .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
-  const names = await speakerNames(
+  const speakers = await speakersOf(
     google,
     raw.map(entry => entry.participant)
   )
@@ -92,14 +103,19 @@ export const collectTranscript = async (google, transcripts) => {
   const lines = []
   let length = 0
   for (const entry of raw) {
-    const speaker = names.get(entry.participant)
+    const { speaker, googleId } = speakers.get(entry.participant)
     const line = `${offset(entry.startTime, start)} ${speaker}: ${entry.text}`
     if (length + line.length > MAX_TEXT) {
       break
     }
     length += line.length + 1
     lines.push(line)
-    entries.push({ speaker, text: entry.text, startTime: entry.startTime })
+    entries.push({
+      speaker,
+      googleId,
+      text: entry.text,
+      startTime: entry.startTime,
+    })
   }
   return {
     entries,

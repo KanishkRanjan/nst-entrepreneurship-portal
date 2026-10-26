@@ -192,10 +192,25 @@ export const portfolio = async (req, res) => {
 const OAUTH_STATE_COOKIE = 'google_oauth_state'
 const oauthStateCookieOptions = { ...cookieOptions, maxAge: 10 * 60 * 1000 }
 
+// Set while a signed-in user connects their Google account, so the
+// callback links it to them instead of signing in.
+const GOOGLE_LINK_COOKIE = 'google_link'
+
 export const googleAuth = (req, res) => {
   const state = crypto.randomBytes(32).toString('hex')
   return res
+    .clearCookie(GOOGLE_LINK_COOKIE, cookieOptions)
     .cookie(OAUTH_STATE_COOKIE, state, oauthStateCookieOptions)
+    .redirect(getGoogleAuthUrl(state))
+}
+
+// Connects the signed-in user's Google account, so the KPI bot knows them
+// in Meet transcripts by account rather than by name.
+export const googleLink = (req, res) => {
+  const state = crypto.randomBytes(32).toString('hex')
+  return res
+    .cookie(OAUTH_STATE_COOKIE, state, oauthStateCookieOptions)
+    .cookie(GOOGLE_LINK_COOKIE, '1', oauthStateCookieOptions)
     .redirect(getGoogleAuthUrl(state))
 }
 
@@ -221,11 +236,59 @@ const linkGoogleAccount = async (user, googleId) => {
   }
 }
 
+// Back to onboarding with ?google=<outcome>; once linked, onboarding moves
+// on to the next step or into the portal.
+const linkOutcome = (res, outcome) =>
+  res.redirect(`${process.env.FRONTEND_URL || ''}/onboarding?google=${outcome}`)
+
+// Why this Google account can't be linked to the signed-in user, or null.
+// Only their own school account (the same email) is taken: any other would
+// sign in as, or sign up, someone else.
+const linkProblem = async (user, { googleId, email, error }) => {
+  // A personal or unverified account isn't their school one.
+  if (error || !user || email !== user.email) {
+    return 'wrong-account'
+  }
+  if (user.googleId && user.googleId !== googleId) {
+    return 'wrong-account'
+  }
+  if (await User.exists({ googleId, _id: { $ne: user._id } })) {
+    return 'taken'
+  }
+  return null
+}
+
+// Links a Google account to the signed-in user.
+const finishGoogleLink = async (req, res, verification) => {
+  if (!req.user) {
+    return linkOutcome(res, 'signed-out')
+  }
+  const user = await User.findById(req.user.id)
+  const problem = await linkProblem(user, verification)
+  if (problem) {
+    return linkOutcome(res, problem)
+  }
+  user.googleId = verification.googleId
+  user.isEmailVerified = true
+  try {
+    await user.save()
+  } catch (saveError) {
+    // Another account took this Google ID since the check above.
+    if (saveError?.code === 11000) {
+      return linkOutcome(res, 'taken')
+    }
+    throw saveError
+  }
+  return linkOutcome(res, 'linked')
+}
+
 export const googleAuthCallback = async (req, res) => {
   try {
     const { code } = req.query
     const validState = hasValidOAuthState(req)
+    const linking = req.cookies[GOOGLE_LINK_COOKIE] === '1'
     res.clearCookie(OAUTH_STATE_COOKIE, oauthStateCookieOptions)
+    res.clearCookie(GOOGLE_LINK_COOKIE, cookieOptions)
     if (!validState) {
       return res
         .status(400)
@@ -239,6 +302,9 @@ export const googleAuthCallback = async (req, res) => {
     }
 
     const verificationResult = await verifyGoogleAuthCode(code)
+    if (linking) {
+      return await finishGoogleLink(req, res, verificationResult)
+    }
     if (verificationResult.error) {
       return res
         .status(verificationResult.status)

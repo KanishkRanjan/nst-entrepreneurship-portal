@@ -75,6 +75,8 @@ export const getUserPortfolio = async userId => {
 
   return {
     ...user.toJSON(),
+    // Whether the KPI bot can know them in Meet by their Google account.
+    googleLinked: Boolean(user.googleId),
     ventureId: venture?._id || null,
     venture: venture ? { ...venture.toJSON(), founders } : null,
     application,

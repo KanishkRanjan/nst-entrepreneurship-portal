@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Navigate } from 'react-router'
+import { Navigate, useSearchParams } from 'react-router'
 
 import { Alert, Box, Button, Dialog, Grid, Typography } from '@mui/material'
 
 import ActionCard from '../../components/ActionCard.jsx'
+import { GoogleMark } from '../../components/AuthFields.jsx'
 import CreateVentureStep from '../../components/CreateVentureStep.jsx'
 import IconBadge from '../../components/IconBadge.jsx'
 import JoinVentureStep from '../../components/JoinVentureStep.jsx'
@@ -60,6 +61,57 @@ function PageHeader({ title, subtitle }) {
           {subtitle}
         </Typography>
       )}
+    </Box>
+  )
+}
+
+// Google account not connected ----------------------------------------------
+
+// Why connecting didn't work (/onboarding?google=<outcome>, set by the API).
+const CONNECT_ERRORS = {
+  'wrong-account': `That wasn't your school Google account. Connect the one with the same email you use here.`,
+  taken:
+    'That Google account is already connected to another portal account. Ask an administrator.',
+  'signed-out': 'You were signed out while connecting. Sign in and try again.',
+}
+
+function ConnectGoogle({ user }) {
+  const [searchParams] = useSearchParams()
+  const error = CONNECT_ERRORS[searchParams.get('google')]
+
+  return (
+    <Box sx={{ width: '100%', maxWidth: 560 }}>
+      <PageHeader
+        title={`Welcome, ${firstName(user)}`}
+        subtitle="First, connect your school Google account."
+      />
+
+      <SectionCard>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
+        <Typography variant="body1" sx={{ mb: 1 }}>
+          Your check-ins with your mentor happen on Google Meet. Connecting your
+          account lets the portal turn the goals you agree to there into your
+          KPIs, so they reach you and not someone with a similar name.
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Choose {user.email} when Google asks. You can still sign in with your
+          password.
+        </Typography>
+        <Button
+          fullWidth
+          variant="contained"
+          size="large"
+          component="a"
+          href="/api/auth/google/link"
+          startIcon={<GoogleMark />}
+        >
+          Connect Google account
+        </Button>
+      </SectionCard>
     </Box>
   )
 }
@@ -289,7 +341,9 @@ export default function PageOnboarding() {
         py: { xs: 4, sm: 6 },
       }}
     >
-      {application?.status === 'PENDING' ? (
+      {user.googleLinked === false ? (
+        <ConnectGoogle user={user} />
+      ) : application?.status === 'PENDING' ? (
         <PendingApplication user={user} application={application} />
       ) : (
         <GetStarted

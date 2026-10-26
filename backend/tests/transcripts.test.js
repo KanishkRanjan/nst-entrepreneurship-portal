@@ -65,7 +65,7 @@ const addTranscript = (recordName, state = 'FILE_GENERATED') => {
     signedinUser: { displayName: 'Mo Mentor' },
   })
   google.participants.set(`${recordName}/participants/olu`, {
-    signedinUser: { displayName: 'Olu Owner' },
+    signedinUser: { user: 'users/olu-google-id', displayName: 'Olu Owner' },
   })
   const at = seconds =>
     new Date(Date.parse('2026-10-01T10:00:00Z') + seconds * 1000).toISOString()
@@ -104,10 +104,12 @@ describe('collecting transcripts', () => {
     assert.equal(saved.transcript.status, 'READY')
     assert.equal(saved.transcript.conferenceRecord, 'conferenceRecords/r1')
     assert.deepEqual(
-      saved.transcript.entries.map(e => [e.speaker, e.text]),
+      saved.transcript.entries.map(e => [e.speaker, e.text, e.googleId]),
       [
-        ['Mo Mentor', 'How did it go?'],
-        ['Olu Owner', 'We ran ten interviews.'],
+        // Signed in without an account ID: just the name.
+        ['Mo Mentor', 'How did it go?', undefined],
+        // The Google account ID that sign-in stores as User.googleId.
+        ['Olu Owner', 'We ran ten interviews.', 'olu-google-id'],
       ]
     )
     assert.equal(

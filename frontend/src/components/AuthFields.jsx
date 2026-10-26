@@ -10,7 +10,7 @@ import Visibility from '@mui/icons-material/VisibilityOutlined'
 import VisibilityOff from '@mui/icons-material/VisibilityOffOutlined'
 
 // Google's "G" mark, as its sign-in branding guidelines ask for.
-function GoogleMark() {
+export function GoogleMark() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
       <path

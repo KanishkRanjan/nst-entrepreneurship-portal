@@ -213,6 +213,7 @@ export const seed = async () => {
   const campus = await Campus.create({ name: 'ADYPU', location: 'Pune' })
   const industry = await Industry.create({ name: 'EdTech' })
 
+  // Students have connected Google, as the portal requires of them.
   const user = (username, email, role) =>
     User.create({
       username,
@@ -220,6 +221,7 @@ export const seed = async () => {
       password: 'password123',
       role: roles[role],
       isEmailVerified: true,
+      ...(role === 'student' && { googleId: `google-${email}` }),
     })
   const [
     admin,
